@@ -40,6 +40,26 @@ src/
 - **Atividade 06 — Motoristas + Contratos + DI:** `/api/motoristas`, atribuição de motorista,
   contratos de repository (JSDoc) e composição num ponto único. Meta: **122/122**.
 
+### Rotas da Atividade 06
+
+| Método | Rota | Resultado |
+|---|---|---|
+| `POST` | `/api/motoristas` | Cria motorista (`nome`, `cpf`, `placaVeiculo` opcional) |
+| `GET` | `/api/motoristas` | Lista motoristas |
+| `GET` | `/api/motoristas/:id` | Busca motorista |
+| `GET` | `/api/motoristas/:id/entregas?status=CRIADA` | Lista entregas atribuídas, com filtro opcional |
+| `PATCH` | `/api/entregas/:id/atribuir` | Atribui `{ "motoristaId": 1 }` a uma entrega CRIADA |
+
+Composição das dependências (composition root em `src/routes/index.js`):
+
+```text
+Database
+   ├── EntregasRepository ──┬── EntregasService ── EntregasController
+   │                        └── MotoristasService
+   └── MotoristasRepository ─┬── EntregasService
+                                          └── MotoristasService ── MotoristasController
+```
+
 > O critério de **inversão de dependência** é verificado pelo professor **trocando o repository por
 > um Mock** que respeita o contrato — programe contra o contrato desde o início.
 
@@ -48,7 +68,7 @@ src/
 - Base `/api` · JSON · erro `{ "erro": "..." }` · `GET /api/health` → `{ "status": "ok" }`.
 - Status: `201` criar · `400` entrada inválida · `404` não encontrado · `409` unicidade
   (duplicata/CPF) · `422` regra de estado (transição/atribuição inválida).
-- Execução: `npm start`, respeita `process.env.PORT`, branch `main`.
+- Execução: `npm start`, respeita `process.env.PORT`, branch de trabalho `delivery_v2`.
 
 Faça **um commit por avanço** (Conventional Commits, ex.: `feat(entregas): valida origem ≠ destino`).
 Bom trabalho! 🚀

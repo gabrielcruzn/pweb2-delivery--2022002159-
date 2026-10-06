@@ -15,7 +15,7 @@ export default class EntregasController {
   listar(req, res) {
     try {
       const status = req.query.status;
-      const entregas = this.service.listar(status);
+      const entregas = this.service.listar(status ? { status } : {});
       res.status(200).json(entregas);
     } catch (erro) {
       res.status(erro.status || 500).json({ erro: erro.message });
@@ -57,6 +57,17 @@ export default class EntregasController {
       const id = Number(req.params.id);
       const historico = this.service.historico(id);
       res.status(200).json(historico);
+    } catch (erro) {
+      res.status(erro.status || 500).json({ erro: erro.message });
+    }
+  }
+
+  atribuirMotorista(req, res) {
+    try {
+      const id = Number(req.params.id);
+      const motoristaId = Number(req.body?.motoristaId);
+      const entrega = this.service.atribuirMotorista(id, motoristaId);
+      res.status(200).json(entrega);
     } catch (erro) {
       res.status(erro.status || 500).json({ erro: erro.message });
     }

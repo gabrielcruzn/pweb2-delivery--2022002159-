@@ -1,8 +1,9 @@
 import { criarErro } from '../utils/erros.js';
 
 export default class EntregasService {
-  constructor(repositories) {
-    this.repositories = repositories;
+  constructor(entregasRepository, motoristasRepository) {
+    this.entregasRepository = entregasRepository;
+    this.motoristasRepository = motoristasRepository;
   }
 
   criar(dados) {
@@ -16,7 +17,7 @@ export default class EntregasService {
       throw criarErro(400, 'origem e destino devem ser diferentes');
     }
 
-    const duplicada = this.repositories.listar().some(
+    const duplicada = this.entregasRepository.listarTodos().some(
       (entrega) =>
         entrega.descricao === descricao &&
         entrega.origem === origem &&
@@ -29,7 +30,7 @@ export default class EntregasService {
       throw criarErro(409, 'já existe uma entrega ativa igual a esta');
     }
 
-    return this.repositories.criar({
+    return this.entregasRepository.criar({
       descricao,
       origem,
       destino,
@@ -39,16 +40,12 @@ export default class EntregasService {
     });
   }
 
-  listar(status) {
-    const entregas = this.repositories.listar();
-    if (!status) {
-      return entregas;
-    }
-    return entregas.filter((entrega) => entrega.status === status);
+  listar(filtros = {}) {
+    return this.entregasRepository.listarTodos(filtros);
   }
 
   buscarPorId(id) {
-    const entrega = this.repositories.buscarPorId(id);
+    const entrega = this.entregasRepository.buscarPorId(id);
     if (!entrega) {
       throw criarErro(404, 'entrega não encontrada');
     }
@@ -80,12 +77,40 @@ export default class EntregasService {
     return this.buscarPorId(id).historico;
   }
 
+  atribuirMotorista(id, motoristaId) {
+    if (!Number.isInteger(motoristaId) || motoristaId <= 0) {
+      throw criarErro(400, 'motoristaId é obrigatório');
+    }
+
+    const entrega = this.buscarPorId(id);
+    if (entrega.status !== 'CRIADA') {
+      throw criarErro(422, 'só é possível atribuir motorista a uma entrega CRIADA');
+    }
+
+    const motorista = this.motoristasRepository.buscarPorId(motoristaId);
+    if (!motorista) {
+      throw criarErro(404, 'motorista não encontrado');
+    }
+    if (motorista.status !== 'ATIVO') {
+      throw criarErro(422, 'não é possível atribuir um motorista INATIVO');
+    }
+
+    const evento = {
+      data: new Date().toISOString(),
+      descricao: `Motorista ${motorista.nome} atribuído`,
+    };
+    return this.entregasRepository.atualizar(id, {
+      motoristaId,
+      historico: [...entrega.historico, evento],
+    });
+  }
+
   mudarStatus(entrega, novoStatus) {
     const evento = {
       data: new Date().toISOString(),
       descricao: `Status alterado para ${novoStatus}`,
     };
-    return this.repositories.atualizar(entrega.id, {
+    return this.entregasRepository.atualizar(entrega.id, {
       status: novoStatus,
       historico: [...entrega.historico, evento],
     });
