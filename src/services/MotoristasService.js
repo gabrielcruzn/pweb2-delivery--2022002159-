@@ -1,4 +1,5 @@
 import { criarErro } from '../utils/erros.js';
+import { validarId } from '../utils/validarId.js';
 
 export default class MotoristasService {
   constructor(motoristasRepository, entregasRepository) {
@@ -6,13 +7,13 @@ export default class MotoristasService {
     this.entregasRepository = entregasRepository;
   }
 
-  criar(dados) {
-    const { nome, cpf, placaVeiculo } = dados;
+  async criar(dados = {}) {
+    const { nome, cpf, placaVeiculo } = dados ?? {};
     if (typeof nome !== 'string' || !nome.trim() || typeof cpf !== 'string' || !cpf.trim()) {
       throw criarErro(400, 'nome e cpf são obrigatórios');
     }
     const cpfNormalizado = cpf.trim();
-    if (this.motoristasRepository.buscarPorCpf(cpfNormalizado)) {
+    if (await this.motoristasRepository.buscarPorCpf(cpfNormalizado)) {
       throw criarErro(409, 'já existe um motorista cadastrado com este CPF');
     }
 
@@ -24,23 +25,22 @@ export default class MotoristasService {
     });
   }
 
-  listar() {
+  async listar() {
     return this.motoristasRepository.listarTodos();
   }
 
-  buscarPorId(id) {
-    const motorista = this.motoristasRepository.buscarPorId(id);
+  async buscarPorId(id) {
+    validarId(id, 'motorista não encontrado');
+    const motorista = await this.motoristasRepository.buscarPorId(id);
     if (!motorista) {
       throw criarErro(404, 'motorista não encontrado');
     }
     return motorista;
   }
 
-  listarEntregas(id, status) {
-    this.buscarPorId(id);
-    return this.entregasRepository.listarTodos({
-      motoristaId: id,
-      ...(status ? { status } : {}),
-    });
+  async listarEntregas(id, status) {
+    await this.buscarPorId(id);
+    const entregas = await this.entregasRepository.listarPorMotorista(id);
+    return status ? entregas.filter((entrega) => entrega.status === status) : entregas;
   }
 }

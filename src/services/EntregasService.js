@@ -1,4 +1,5 @@
 import { criarErro } from '../utils/erros.js';
+import { validarId } from '../utils/validarId.js';
 
 export default class EntregasService {
   constructor(entregasRepository, motoristasRepository) {
@@ -6,8 +7,8 @@ export default class EntregasService {
     this.motoristasRepository = motoristasRepository;
   }
 
-  criar(dados) {
-    const { descricao, origem, destino } = dados;
+  async criar(dados = {}) {
+    const { descricao, origem, destino } = dados ?? {};
 
     if (!descricao || !origem || !destino) {
       throw criarErro(400, 'descricao, origem e destino são obrigatórios');
@@ -17,7 +18,8 @@ export default class EntregasService {
       throw criarErro(400, 'origem e destino devem ser diferentes');
     }
 
-    const duplicada = this.entregasRepository.listarTodos().some(
+    const entregas = await this.entregasRepository.listarTodos();
+    const duplicada = entregas.some(
       (entrega) =>
         entrega.descricao === descricao &&
         entrega.origem === origem &&
@@ -36,24 +38,25 @@ export default class EntregasService {
       destino,
       status: 'CRIADA',
       motoristaId: null,
-      historico: [{ data: new Date().toISOString(), descricao: 'Entrega criada' }],
+      evento: { data: new Date().toISOString(), descricao: 'Entrega criada' },
     });
   }
 
-  listar(filtros = {}) {
+  async listar(filtros = {}) {
     return this.entregasRepository.listarTodos(filtros);
   }
 
-  buscarPorId(id) {
-    const entrega = this.entregasRepository.buscarPorId(id);
+  async buscarPorId(id) {
+    validarId(id, 'entrega não encontrada');
+    const entrega = await this.entregasRepository.buscarPorId(id);
     if (!entrega) {
       throw criarErro(404, 'entrega não encontrada');
     }
     return entrega;
   }
 
-  avancar(id) {
-    const entrega = this.buscarPorId(id);
+  async avancar(id) {
+    const entrega = await this.buscarPorId(id);
 
     if (entrega.status === 'CRIADA') {
       return this.mudarStatus(entrega, 'EM_TRANSITO');
@@ -64,8 +67,8 @@ export default class EntregasService {
     throw criarErro(422, `não é possível avançar uma entrega ${entrega.status}`);
   }
 
-  cancelar(id) {
-    const entrega = this.buscarPorId(id);
+  async cancelar(id) {
+    const entrega = await this.buscarPorId(id);
 
     if (entrega.status === 'ENTREGUE' || entrega.status === 'CANCELADA') {
       throw criarErro(422, `não é possível cancelar uma entrega ${entrega.status}`);
@@ -73,21 +76,19 @@ export default class EntregasService {
     return this.mudarStatus(entrega, 'CANCELADA');
   }
 
-  historico(id) {
-    return this.buscarPorId(id).historico;
+  async historico(id) {
+    return (await this.buscarPorId(id)).historico;
   }
 
-  atribuirMotorista(id, motoristaId) {
-    if (!Number.isInteger(motoristaId) || motoristaId <= 0) {
-      throw criarErro(400, 'motoristaId é obrigatório');
-    }
+  async atribuirMotorista(id, motoristaId) {
+    validarId(motoristaId, 'motorista não encontrado');
 
-    const entrega = this.buscarPorId(id);
+    const entrega = await this.buscarPorId(id);
     if (entrega.status !== 'CRIADA') {
       throw criarErro(422, 'só é possível atribuir motorista a uma entrega CRIADA');
     }
 
-    const motorista = this.motoristasRepository.buscarPorId(motoristaId);
+    const motorista = await this.motoristasRepository.buscarPorId(motoristaId);
     if (!motorista) {
       throw criarErro(404, 'motorista não encontrado');
     }
@@ -101,7 +102,7 @@ export default class EntregasService {
     };
     return this.entregasRepository.atualizar(id, {
       motoristaId,
-      historico: [...entrega.historico, evento],
+      evento,
     });
   }
 
@@ -112,7 +113,7 @@ export default class EntregasService {
     };
     return this.entregasRepository.atualizar(entrega.id, {
       status: novoStatus,
-      historico: [...entrega.historico, evento],
+      evento,
     });
   }
 }

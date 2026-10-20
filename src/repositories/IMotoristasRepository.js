@@ -1,9 +1,10 @@
 /**
  * Contrato de persistência dos motoristas.
  * @typedef {object} IMotoristasRepository
- * @property {() => object[]} listarTodos
- * @property {(id: number) => object | null} buscarPorId
- * @property {(cpf: string) => object | null} buscarPorCpf
- * @property {(dados: object) => object} criar
+ * @property {() => Promise<object[]>} listarTodos
+ * @property {(id: number) => Promise<object | null>} buscarPorId
+ * @property {(cpf: string) => Promise<object | null>} buscarPorCpf
+ * @property {(dados: object) => Promise<object>} criar
+ * @property {(id: number, dados: object) => Promise<object | null>} atualizar
  */
 export {};

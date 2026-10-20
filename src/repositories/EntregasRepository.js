@@ -3,29 +3,51 @@ export default class EntregasRepository {
     this.database = database;
   }
 
-  listarTodos(filtros = {}) {
+  async listarTodos(filtros = {}) {
     return this.database.entregas.filter((entrega) =>
       Object.entries(filtros).every(([campo, valor]) => entrega[campo] === valor)
     );
   }
 
-  buscarPorId(id) {
+  async buscarPorId(id) {
     return this.database.entregas.find((entrega) => entrega.id === id) ?? null;
   }
 
-  criar(dados) {
-    const entrega = { id: this.database.proximoId, ...dados };
+  async criar(dados) {
+    const { evento, historico = [], ...campos } = dados;
+    const entrega = {
+      id: this.database.proximoId,
+      ...campos,
+      historico: evento ? [this.normalizarEvento(evento)] : historico,
+    };
     this.database.proximoId += 1;
     this.database.entregas.push(entrega);
     return entrega;
   }
 
-  atualizar(id, dados) {
-    const entrega = this.buscarPorId(id);
+  async atualizar(id, dados) {
+    const entrega = await this.buscarPorId(id);
     if (!entrega) {
       return null;
     }
-    Object.assign(entrega, dados);
+    const { evento, historico, ...campos } = dados;
+    Object.assign(entrega, campos);
+    if (evento) {
+      entrega.historico.push(this.normalizarEvento(evento));
+    } else if (historico) {
+      entrega.historico = historico;
+    }
     return entrega;
+  }
+
+  async listarPorMotorista(id) {
+    return this.database.entregas.filter((entrega) => entrega.motoristaId === id);
+  }
+
+  normalizarEvento(evento) {
+    return {
+      data: evento.data ? new Date(evento.data).toISOString() : new Date().toISOString(),
+      descricao: evento.descricao,
+    };
   }
 }

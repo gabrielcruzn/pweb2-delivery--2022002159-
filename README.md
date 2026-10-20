@@ -8,15 +8,25 @@
 
 1. Clique em **"Use this template"** e crie **`pweb2-delivery-<matricula>`** (ex.: `pweb2-delivery-20231012345`).
    Este é o repositório que você usará o **semestre inteiro** (evolui a cada capítulo).
-2. Clone, instale e rode:
+2. Clone, instale e configure o banco local:
    ```bash
    npm install
+   cp .env.example .env
+   npx prisma migrate dev
    npm start                                        # http://localhost:3000
    # em outro terminal — autograder:
    npm run check                                    # = BASE_URL=http://localhost:3000 node autograder/check.mjs
    ```
+   No PowerShell, use `Copy-Item .env.example .env` no lugar de `cp`.
 3. A cada `git push`, o **GitHub Actions** roda o autograder e mostra a nota na aba **Actions**
    (resumo do job). O `autograder/check.mjs` é **aberto** — leia para saber exatamente o que se espera.
+
+### Banco de dados
+
+- `npx prisma migrate dev --name nome-da-migration`: cria e aplica migrations durante o desenvolvimento.
+- `npm run migrate:deploy` (ou `npx prisma migrate deploy`): aplica migrations já versionadas em CI/produção, sem criar uma nova.
+- `npx prisma studio`: abre uma interface local para consultar e editar os dados do SQLite.
+- A URL padrão está em `.env.example` como `file:./dev.db`; `.env` e arquivos `.db` não são versionados.
 
 ## O que implementar (em `src/`)
 
@@ -24,9 +34,11 @@
 src/
 ├── controllers/   # traduz HTTP ↔ service (sem regra de negócio)
 ├── services/      # TODA a regra de negócio
-├── repositories/  # só acesso a dados
-├── database/      # persistência SIMULADA em memória (sem banco real, sem ORM)
-├── routes/        # composição das dependências (injeção) + monta em /api
+├── repositories/  # contratos, repositories em memória e adapters Prisma
+├── config/        # singleton do Prisma Client
+├── database/      # implementação em memória mantida para testes/mocks
+├── routes/        # composition root: injeta os repositories Prisma
+├── services/      # regras de negócio assíncronas
 └── utils/
 ```
 
@@ -53,11 +65,11 @@ src/
 Composição das dependências (composition root em `src/routes/index.js`):
 
 ```text
-Database
-   ├── EntregasRepository ──┬── EntregasService ── EntregasController
-   │                        └── MotoristasService
-   └── MotoristasRepository ─┬── EntregasService
-                                          └── MotoristasService ── MotoristasController
+Prisma Client (src/config/database.js)
+   ├── EntregasRepositoryPrisma ──┬── EntregasService ── EntregasController
+   │                              └── MotoristasService
+   └── MotoristasRepositoryPrisma ─┬── EntregasService
+                                   └── MotoristasService ── MotoristasController
 ```
 
 > O critério de **inversão de dependência** é verificado pelo professor **trocando o repository por
@@ -68,7 +80,7 @@ Database
 - Base `/api` · JSON · erro `{ "erro": "..." }` · `GET /api/health` → `{ "status": "ok" }`.
 - Status: `201` criar · `400` entrada inválida · `404` não encontrado · `409` unicidade
   (duplicata/CPF) · `422` regra de estado (transição/atribuição inválida).
-- Execução: `npm start`, respeita `process.env.PORT`, branch de trabalho `delivery_v2`.
+- Execução: `npm start`, respeita `process.env.PORT`, branch de trabalho `delivery_v3`.
 
 Faça **um commit por avanço** (Conventional Commits, ex.: `feat(entregas): valida origem ≠ destino`).
 Bom trabalho! 🚀

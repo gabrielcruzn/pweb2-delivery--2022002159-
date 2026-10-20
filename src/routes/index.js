@@ -1,16 +1,14 @@
 import { Router } from 'express';
-import Database from '../database/Database.js';
-import EntregasRepository from '../repositories/EntregasRepository.js';
-import MotoristasRepository from '../repositories/MotoristasRepository.js';
+import EntregasRepository from '../repositories/entregas.repository.prisma.js';
+import MotoristasRepository from '../repositories/motoristas.repository.prisma.js';
 import EntregasService from '../services/EntregasService.js';
 import MotoristasService from '../services/MotoristasService.js';
 import EntregasController from '../controllers/EntregasController.js';
 import MotoristasController from '../controllers/MotoristasController.js';
 
 export function criarRotas() {
-  const database = new Database();
-  const entregasRepository = new EntregasRepository(database);
-  const motoristasRepository = new MotoristasRepository(database);
+  const entregasRepository = new EntregasRepository();
+  const motoristasRepository = new MotoristasRepository();
   const entregasService = new EntregasService(entregasRepository, motoristasRepository);
   const motoristasService = new MotoristasService(motoristasRepository, entregasRepository);
   const entregasController = new EntregasController(entregasService);
