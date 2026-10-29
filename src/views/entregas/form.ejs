@@ -1,0 +1,35 @@
+<a class="back-link" href="/entregas">← Voltar para entregas</a>
+<section class="form-layout">
+  <div class="form-heading">
+    <p class="eyebrow">NOVA OPERAÇÃO</p>
+    <h1>Nova entrega</h1>
+    <p class="page-intro">Preencha as informações para registrar uma nova entrega.</p>
+  </div>
+
+  <form class="panel form-panel" action="/entregas" method="POST" novalidate>
+    <% if (erros.length) { %>
+      <div class="validation-errors" role="alert">
+        <strong>Confira os dados informados:</strong>
+        <ul><% for (const erro of erros) { %><li><%= erro %></li><% } %></ul>
+      </div>
+    <% } %>
+    <div class="field">
+      <label for="descricao">Descrição</label>
+      <input id="descricao" name="descricao" type="text" value="<%= entrega.descricao || '' %>" required>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label for="origem">Origem</label>
+        <input id="origem" name="origem" type="text" value="<%= entrega.origem || '' %>" required>
+      </div>
+      <div class="field">
+        <label for="destino">Destino</label>
+        <input id="destino" name="destino" type="text" value="<%= entrega.destino || '' %>" required>
+      </div>
+    </div>
+    <div class="form-actions">
+      <a class="button button-quiet" href="/entregas">Cancelar</a>
+      <button class="button button-primary" type="submit">Salvar entrega</button>
+    </div>
+  </form>
+</section>

@@ -1,213 +1,202 @@
 #!/usr/bin/env node
 /**
- * Autograder — Delivery Tracker · Capítulo 4 (Arquitetura + Repository + DI).
+ * Autograder — Delivery Tracker · Atividade 08 (SSR com EJS).
  *
- * Testa o CONTRATO da API (caixa-preta) contra uma BASE_URL. Funciona tanto no
- * CI (servidor em localhost) quanto contra um deploy em nuvem.
- *
- *   BASE_URL=http://localhost:3000 node check.mjs
- *   BASE_URL=https://delivery-fulano.onrender.com node check.mjs
- *
- * Saída: tabela de checagens + pontuação total. Emite JSON em GRADE_JSON (arquivo)
- * se a variável estiver definida. Código de saída != 0 se a nota for < 100%.
- *
- * Requer Node 18+ (fetch global). Sem dependências.
+ * Uso: BASE_URL=http://localhost:3000 node autograder/check.mjs
+ * Requer Node 18+ e servidor em execução.
  */
 
 const BASE = (process.env.BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
-const uniq = Date.now().toString(36); // evita colidir com dados de execuções anteriores
-
+const identificador = Date.now().toString(36);
+let cookie = '';
 const checks = [];
-function check(nome, pontos, fn) {
-  checks.push({ nome, pontos, fn });
+
+function check(nome, pontos, executar) {
+  checks.push({ nome, pontos, executar });
 }
 
-async function req(method, path, body) {
-  const opt = { method, headers: {} };
-  if (body !== undefined) {
-    opt.headers['Content-Type'] = 'application/json';
-    opt.body = JSON.stringify(body);
+async function req(caminho, metodo = 'GET', dados) {
+  const headers = {};
+  if (cookie) headers.cookie = cookie;
+  const opcoes = { method: metodo, headers, redirect: 'manual' };
+  if (dados !== undefined) {
+    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    opcoes.body = new URLSearchParams(dados);
   }
-  const res = await fetch(BASE + path, opt);
-  let json = null;
-  try { json = await res.json(); } catch { /* corpo vazio/não-JSON */ }
-  return { status: res.status, json };
+
+  const resposta = await fetch(`${BASE}${caminho}`, opcoes);
+  const setCookie = resposta.headers.get('set-cookie');
+  if (setCookie) cookie = setCookie.split(';', 1)[0];
+  return {
+    status: resposta.status,
+    location: resposta.headers.get('location'),
+    type: resposta.headers.get('content-type') || '',
+    body: await resposta.text(),
+  };
 }
 
-function assert(cond, msg) {
-  if (!cond) throw new Error(msg);
+function assert(condicao, mensagem) {
+  if (!condicao) throw new Error(mensagem);
 }
 
-// ---------------------------------------------------------------------------
-// Cenários (baseados nas Atividades 05 e 06). Cada bloco é independente,
-// usando descrições únicas para não colidir com a regra de duplicidade.
-// ---------------------------------------------------------------------------
+let entregaId;
+const descricao = `Entrega SSR ${identificador}`;
+const cpf = `cpf-ssr-${identificador}`;
 
-check('POST /api/entregas cria entrega (201, status CRIADA, histórico)', 12, async () => {
-  const r = await req('POST', '/api/entregas', { descricao: `Pacote A ${uniq}`, origem: 'Maceió', destino: 'Arapiraca' });
-  assert(r.status === 201, `esperado 201, veio ${r.status}`);
-  assert(r.json && typeof r.json.id !== 'undefined', 'resposta deve conter id');
-  assert(r.json.status === 'CRIADA', `status inicial deve ser CRIADA, veio ${r.json?.status}`);
-  assert(Array.isArray(r.json.historico) && r.json.historico.length >= 1, 'deve criar evento no histórico');
+check('GET / redireciona para /entregas', 5, async () => {
+  const resposta = await req('/');
+  assert(resposta.status === 302, `esperado 302, recebido ${resposta.status}`);
+  assert(resposta.location === '/entregas', 'deve redirecionar para /entregas');
 });
 
-check('POST /api/entregas com origem == destino → 400', 8, async () => {
-  const r = await req('POST', '/api/entregas', { descricao: `Igual ${uniq}`, origem: 'Recife', destino: 'Recife' });
-  assert(r.status === 400, `esperado 400, veio ${r.status}`);
+check('GET /entregas renderiza listagem e filtro', 10, async () => {
+  const resposta = await req('/entregas?status=CRIADA');
+  assert(resposta.status === 200 && resposta.type.includes('text/html'), 'deve renderizar HTML');
+  assert(resposta.body.includes('Lista de entregas'), 'deve exibir a tabela de entregas');
+  assert(resposta.body.includes('/entregas/nova'), 'deve oferecer o formulário de nova entrega');
+  assert(resposta.body.includes('Todos os status'), 'deve exibir o filtro de status');
 });
 
-check('POST /api/entregas duplicada ativa → 409', 8, async () => {
-  const body = { descricao: `Dup ${uniq}`, origem: 'Maceió', destino: 'Penedo' };
-  await req('POST', '/api/entregas', body);
-  const r = await req('POST', '/api/entregas', body);
-  assert(r.status === 409, `esperado 409, veio ${r.status}`);
+check('GET /entregas/nova exibe formulário', 10, async () => {
+  const resposta = await req('/entregas/nova');
+  assert(resposta.status === 200, `esperado 200, recebido ${resposta.status}`);
+  for (const campo of ['descricao', 'origem', 'destino']) {
+    assert(resposta.body.includes(`name="${campo}"`), `formulário sem campo ${campo}`);
+  }
 });
 
-check('GET /api/entregas lista (array)', 6, async () => {
-  const r = await req('GET', '/api/entregas');
-  assert(r.status === 200, `esperado 200, veio ${r.status}`);
-  assert(Array.isArray(r.json), 'resposta deve ser um array');
+check('POST /entregas inválida reexibe dados com status 400', 10, async () => {
+  const resposta = await req('/entregas', 'POST', {
+    descricao: `Inválida ${identificador}`,
+    origem: 'Recife',
+    destino: 'Recife',
+  });
+  assert(resposta.status === 400, `esperado 400, recebido ${resposta.status}`);
+  assert(resposta.body.includes(`Inválida ${identificador}`), 'deve preservar os dados digitados');
+  assert(resposta.body.includes('diferentes'), 'deve explicar o erro de validação');
 });
 
-check('GET /api/entregas/:id inexistente → 404', 6, async () => {
-  const r = await req('GET', '/api/entregas/99999999');
-  assert(r.status === 404, `esperado 404, veio ${r.status}`);
+check('POST /entregas cria e redireciona (PRG)', 10, async () => {
+  const resposta = await req('/entregas', 'POST', {
+    descricao,
+    origem: 'Maceio',
+    destino: 'Arapiraca',
+  });
+  assert(resposta.status === 303, `esperado 303, recebido ${resposta.status}`);
+  assert(/^\/entregas\/\d+$/.test(resposta.location || ''), 'deve redirecionar para os detalhes');
+  entregaId = resposta.location.split('/').pop();
 });
 
-check('Ciclo de status: avançar CRIADA→EM_TRANSITO→ENTREGUE', 14, async () => {
-  const c = await req('POST', '/api/entregas', { descricao: `Ciclo ${uniq}`, origem: 'A', destino: 'B' });
-  const id = c.json.id;
-  const a1 = await req('PATCH', `/api/entregas/${id}/avancar`);
-  assert(a1.status === 200 && a1.json.status === 'EM_TRANSITO', `1ª transição deveria dar EM_TRANSITO, veio ${a1.status}/${a1.json?.status}`);
-  const a2 = await req('PATCH', `/api/entregas/${id}/avancar`);
-  assert(a2.status === 200 && a2.json.status === 'ENTREGUE', `2ª transição deveria dar ENTREGUE, veio ${a2.status}/${a2.json?.status}`);
+check('GET /entregas/:id exibe status, histórico e flash', 10, async () => {
+  const resposta = await req(`/entregas/${entregaId}`);
+  assert(resposta.status === 200, `esperado 200, recebido ${resposta.status}`);
+  assert(resposta.body.includes(descricao), 'detalhe não exibe a descrição');
+  assert(resposta.body.includes('CRIADA'), 'detalhe não exibe o status');
+  assert(resposta.body.includes('Entrega criada'), 'detalhe não exibe o histórico');
+  assert(resposta.body.includes('Entrega criada com sucesso'), 'mensagem flash não foi exibida');
 });
 
-check('Avançar após ENTREGUE → 422', 8, async () => {
-  const c = await req('POST', '/api/entregas', { descricao: `Fim ${uniq}`, origem: 'A', destino: 'B' });
-  const id = c.json.id;
-  await req('PATCH', `/api/entregas/${id}/avancar`);
-  await req('PATCH', `/api/entregas/${id}/avancar`);
-  const r = await req('PATCH', `/api/entregas/${id}/avancar`);
-  assert(r.status === 422, `esperado 422, veio ${r.status}`);
+check('PATCH /entregas/:id/avancar usa method-override e PRG', 10, async () => {
+  const acao = await req(`/entregas/${entregaId}/avancar?_method=PATCH`, 'POST');
+  assert(acao.status === 303, `esperado 303, recebido ${acao.status}`);
+  const detalhe = await req(acao.location);
+  assert(detalhe.body.includes('EM TRANSITO'), 'status não avançou para EM_TRANSITO');
+  assert(detalhe.body.includes('status da entrega foi'), 'mensagem flash do avanço não foi exibida');
 });
 
-check('Cancelar entrega já ENTREGUE → 422', 8, async () => {
-  const c = await req('POST', '/api/entregas', { descricao: `CancFim ${uniq}`, origem: 'A', destino: 'B' });
-  const id = c.json.id;
-  await req('PATCH', `/api/entregas/${id}/avancar`);
-  await req('PATCH', `/api/entregas/${id}/avancar`);
-  const r = await req('PATCH', `/api/entregas/${id}/cancelar`);
-  assert(r.status === 422, `esperado 422, veio ${r.status}`);
+check('PATCH /entregas/:id/atribuir atribui motorista via formulário', 10, async () => {
+  const motorista = await req('/motoristas', 'POST', {
+    nome: `Motorista ${identificador}`,
+    cpf,
+  });
+  assert(motorista.status === 303, `esperado 303 ao criar motorista, recebido ${motorista.status}`);
+
+  const lista = await req(motorista.location);
+  assert(lista.body.includes('Motorista cadastrado com sucesso'), 'mensagem flash do cadastro ausente');
+  const match = lista.body.match(/name="motoristaId"[^>]*|<td><strong>Motorista [^<]+<\/strong><\/td>/);
+  assert(match, 'motorista criado não apareceu na interface');
+
+  const novaEntrega = await req('/entregas', 'POST', {
+    descricao: `Atribuicao ${identificador}`,
+    origem: 'Maceio',
+    destino: 'Penedo',
+  });
+  assert(novaEntrega.status === 303, `esperado 303, recebido ${novaEntrega.status}`);
+  const detalhe = await req(novaEntrega.location);
+  const id = novaEntrega.location.split('/').pop();
+  const opcao = detalhe.body.match(/<option value="(\d+)"\s*>Motorista /);
+  assert(opcao, 'motorista ativo não disponível no formulário de atribuição');
+  const atribuicao = await req(`/entregas/${id}/atribuir?_method=PATCH`, 'POST', {
+    motoristaId: opcao[1],
+  });
+  assert(atribuicao.status === 303, `esperado 303, recebido ${atribuicao.status}`);
+  const detalheAtribuido = await req(atribuicao.location);
+  assert(detalheAtribuido.body.includes('Motorista atribuído à entrega'), 'flash da atribuição ausente');
+  assert(detalheAtribuido.body.includes(`Motorista ${identificador}`), 'motorista não aparece nos detalhes');
 });
 
-check('GET /api/entregas/:id/historico reflete transições', 6, async () => {
-  const c = await req('POST', '/api/entregas', { descricao: `Hist ${uniq}`, origem: 'A', destino: 'B' });
-  const id = c.json.id;
-  await req('PATCH', `/api/entregas/${id}/avancar`);
-  const r = await req('GET', `/api/entregas/${id}/historico`);
-  assert(r.status === 200 && Array.isArray(r.json), 'histórico deve ser um array');
-  assert(r.json.length >= 2, `esperado ≥2 eventos (criação + avanço), veio ${r.json?.length}`);
+check('POST /motoristas rejeita CPF duplicado e preserva o formulário', 10, async () => {
+  const resposta = await req('/motoristas', 'POST', {
+    nome: `Outro nome ${identificador}`,
+    cpf,
+  });
+  assert(resposta.status === 409, `esperado 409, recebido ${resposta.status}`);
+  assert(resposta.body.includes(`Outro nome ${identificador}`), 'deve preservar o nome digitado');
+  assert(resposta.body.includes('CPF'), 'deve exibir mensagem de CPF duplicado');
 });
 
-check('GET /api/entregas?status=CRIADA filtra por status', 6, async () => {
-  await req('POST', '/api/entregas', { descricao: `Filtro ${uniq}`, origem: 'A', destino: 'C' });
-  const r = await req('GET', '/api/entregas?status=CRIADA');
-  assert(r.status === 200 && Array.isArray(r.json), 'deve retornar array');
-  assert(r.json.every((e) => e.status === 'CRIADA'), 'todos os itens devem ter status CRIADA');
+check('GET /motoristas/novo exibe formulário', 10, async () => {
+  const resposta = await req('/motoristas/novo');
+  assert(resposta.status === 200, `esperado 200, recebido ${resposta.status}`);
+  assert(resposta.body.includes('name="nome"'), 'formulário sem campo nome');
+  assert(resposta.body.includes('name="cpf"'), 'formulário sem campo cpf');
 });
 
-check('POST /api/motoristas cria (201, status ATIVO)', 8, async () => {
-  const r = await req('POST', '/api/motoristas', { nome: 'João', cpf: `cpf-${uniq}-1` });
-  assert(r.status === 201, `esperado 201, veio ${r.status}`);
-  assert(r.json.status === 'ATIVO', `status inicial deve ser ATIVO, veio ${r.json?.status}`);
+check('PATCH /entregas/:id/cancelar redireciona com flash', 5, async () => {
+  const nova = await req('/entregas', 'POST', {
+    descricao: `Cancelamento ${identificador}`,
+    origem: 'Maceio',
+    destino: 'Palmeira dos Indios',
+  });
+  assert(nova.status === 303, `esperado 303, recebido ${nova.status}`);
+  const id = nova.location.split('/').pop();
+  const acao = await req(`/entregas/${id}/cancelar?_method=PATCH`, 'POST');
+  assert(acao.status === 303, `esperado 303, recebido ${acao.status}`);
+  const detalhe = await req(acao.location);
+  assert(detalhe.body.includes('CANCELADA'), 'entrega não foi cancelada');
+  assert(detalhe.body.includes('Entrega cancelada'), 'mensagem flash do cancelamento ausente');
 });
 
-check('POST /api/motoristas CPF duplicado → 409', 8, async () => {
-  const cpf = `cpf-${uniq}-2`;
-  await req('POST', '/api/motoristas', { nome: 'Ana', cpf });
-  const r = await req('POST', '/api/motoristas', { nome: 'Ana 2', cpf });
-  assert(r.status === 409, `esperado 409, veio ${r.status}`);
+check('GET /entregas/:id inexistente renderiza HTML 404', 10, async () => {
+  const resposta = await req('/entregas/99999999');
+  assert(resposta.status === 404, `esperado 404, recebido ${resposta.status}`);
+  assert(resposta.type.includes('text/html'), 'erro deve ser uma página HTML');
+  assert(resposta.body.includes('Página não encontrada'), 'página 404 não foi renderizada');
+  assert(!resposta.body.includes('stack trace'), 'resposta não deve revelar stack trace');
 });
 
-check('PATCH atribuir: entrega CRIADA + motorista ATIVO → sucesso', 8, async () => {
-  const m = await req('POST', '/api/motoristas', { nome: 'Bia', cpf: `cpf-${uniq}-3` });
-  const e = await req('POST', '/api/entregas', { descricao: `Atr ${uniq}`, origem: 'A', destino: 'B' });
-  const r = await req('PATCH', `/api/entregas/${e.json.id}/atribuir`, { motoristaId: m.json.id });
-  assert(r.status === 200, `esperado 200, veio ${r.status}`);
-  assert(r.json.motoristaId === m.json.id, 'entrega deve referenciar o motorista atribuído');
+check('GET /api/health preserva readiness', 5, async () => {
+  const resposta = await req('/api/health');
+  assert(resposta.status === 200, `esperado 200, recebido ${resposta.status}`);
+  assert(resposta.body.includes('"status":"ok"'), 'health check deve retornar status ok');
 });
 
-check('PATCH atribuir a entrega EM_TRANSITO → 422', 8, async () => {
-  const m = await req('POST', '/api/motoristas', { nome: 'Caio', cpf: `cpf-${uniq}-4` });
-  const e = await req('POST', '/api/entregas', { descricao: `AtrTr ${uniq}`, origem: 'A', destino: 'B' });
-  await req('PATCH', `/api/entregas/${e.json.id}/avancar`); // EM_TRANSITO
-  const r = await req('PATCH', `/api/entregas/${e.json.id}/atribuir`, { motoristaId: m.json.id });
-  assert(r.status === 422, `esperado 422, veio ${r.status}`);
-});
+let obtido = 0;
+const total = checks.reduce((soma, item) => soma + item.pontos, 0);
+console.log(`\nAutograder — Delivery Tracker · Atividade 08`);
+console.log(`BASE_URL: ${BASE}\n`);
 
-check('GET /api/motoristas/:id/entregas retorna só as do motorista', 8, async () => {
-  const m = await req('POST', '/api/motoristas', { nome: 'Dora', cpf: `cpf-${uniq}-5` });
-  const e = await req('POST', '/api/entregas', { descricao: `Dela ${uniq}`, origem: 'A', destino: 'B' });
-  await req('PATCH', `/api/entregas/${e.json.id}/atribuir`, { motoristaId: m.json.id });
-  const r = await req('GET', `/api/motoristas/${m.json.id}/entregas`);
-  assert(r.status === 200 && Array.isArray(r.json), 'deve retornar array');
-  assert(r.json.length >= 1 && r.json.every((x) => x.motoristaId === m.json.id), 'só entregas do motorista');
-});
-
-// ---------------------------------------------------------------------------
-
-async function main() {
-  console.log(`\nAutograder — Delivery Tracker · Cap. 4`);
-  console.log(`BASE_URL: ${BASE}\n`);
-
-  // sanidade: servidor no ar?
+for (const item of checks) {
   try {
-    await fetch(BASE + '/api/health').catch(() => fetch(BASE + '/api/entregas'));
-  } catch {
-    console.error(`✗ Não foi possível conectar em ${BASE}. O servidor está rodando?`);
-    process.exit(2);
+    await item.executar();
+    obtido += item.pontos;
+    console.log(`✓ [${String(item.pontos).padStart(2)}/${item.pontos}] ${item.nome}`);
+  } catch (erro) {
+    console.log(`✗ [ 0/${item.pontos}] ${item.nome}`);
+    console.log(`  ${erro.message}`);
   }
-
-  let obtido = 0;
-  let total = 0;
-  const linhas = [];
-  for (const c of checks) {
-    total += c.pontos;
-    try {
-      await c.fn();
-      obtido += c.pontos;
-      linhas.push({ ok: true, nome: c.nome, pontos: `${c.pontos}/${c.pontos}`, detalhe: '' });
-    } catch (e) {
-      linhas.push({ ok: false, nome: c.nome, pontos: `0/${c.pontos}`, detalhe: e.message });
-    }
-  }
-
-  for (const l of linhas) {
-    console.log(`${l.ok ? '✓' : '✗'} [${l.pontos.padStart(5)}] ${l.nome}`);
-    if (!l.ok) console.log(`        ↳ ${l.detalhe}`);
-  }
-
-  const pct = total ? Math.round((obtido / total) * 100) : 0;
-  console.log(`\nNOTA: ${obtido}/${total}  (${pct}%)\n`);
-
-  if (process.env.GRADE_JSON) {
-    const fs = await import('node:fs');
-    fs.writeFileSync(process.env.GRADE_JSON, JSON.stringify({ obtido, total, pct, linhas }, null, 2));
-  }
-
-  if (process.env.GITHUB_STEP_SUMMARY) {
-    const fs = await import('node:fs');
-    const md = [
-      pct === 100 ? '## ✅ Delivery Tracker — Cap. 4: 122/122 (100%)' : `## Autograder — Delivery Tracker · Cap. 4 · ${obtido}/${total} (${pct}%)`,
-      '', '| | Checagem | Pontos |', '|---|---|---|',
-      ...linhas.map((l) => `| ${l.ok ? '✅' : '❌'} | ${l.nome}${l.ok ? '' : ' — ' + l.detalhe} | ${l.pontos} |`),
-      '', '> Correção de conformidade (comportamento). O critério de arquitetura/DI é verificado pelo professor.',
-    ].join('\n');
-    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md + '\n');
-  }
-
-  process.exit(pct === 100 ? 0 : 1);
 }
 
-main();
+const percentual = Math.round((obtido / total) * 100);
+console.log(`\nNOTA: ${obtido}/${total}  (${percentual}%)`);
+if (percentual !== 100) process.exitCode = 1;

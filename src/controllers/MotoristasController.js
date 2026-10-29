@@ -1,38 +1,54 @@
+import { validationResult } from 'express-validator';
+
 export default class MotoristasController {
   constructor(service) {
     this.service = service;
   }
 
-  async criar(req, res) {
-    try {
-      res.status(201).json(await this.service.criar(req.body ?? {}));
-    } catch (erro) {
-      res.status(erro.status || 500).json({ erro: erro.message });
-    }
-  }
-
   async listar(req, res) {
     try {
-      res.status(200).json(await this.service.listar());
+      const motoristas = await this.service.listar();
+      res.render('motoristas/index', { title: 'Motoristas', motoristas });
     } catch (erro) {
-      res.status(erro.status || 500).json({ erro: erro.message });
+      console.error(erro);
+      res.status(500).render('errors/500', { title: 'Não foi possível carregar os motoristas' });
     }
   }
 
-  async buscarPorId(req, res) {
-    try {
-      res.status(200).json(await this.service.buscarPorId(Number(req.params.id)));
-    } catch (erro) {
-      res.status(erro.status || 500).json({ erro: erro.message });
-    }
+  novo(req, res) {
+    res.render('motoristas/form', {
+      title: 'Novo motorista',
+      motorista: {},
+      erros: [],
+    });
   }
 
-  async listarEntregas(req, res) {
+  async criar(req, res) {
+    const erros = validationResult(req).array().map((erro) => erro.msg);
+    if (erros.length) {
+      return res.status(400).render('motoristas/form', {
+        title: 'Novo motorista',
+        motorista: req.body,
+        erros,
+      });
+    }
+
     try {
-      const entregas = await this.service.listarEntregas(Number(req.params.id), req.query.status);
-      res.status(200).json(entregas);
+      await this.service.criar(req.body ?? {});
+      req.flash('success', 'Motorista cadastrado com sucesso.');
+      return res.redirect(303, '/motoristas');
     } catch (erro) {
-      res.status(erro.status || 500).json({ erro: erro.message });
+      if (erro.status === 400 || erro.status === 409) {
+        return res.status(erro.status).render('motoristas/form', {
+          title: 'Novo motorista',
+          motorista: req.body,
+          erros: [erro.message],
+        });
+      }
+      console.error(erro);
+      return res.status(500).render('errors/500', {
+        title: 'Não foi possível cadastrar o motorista',
+      });
     }
   }
 }

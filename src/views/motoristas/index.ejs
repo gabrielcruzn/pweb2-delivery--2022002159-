@@ -1,0 +1,41 @@
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">EQUIPE</p>
+    <h1>Motoristas</h1>
+    <p class="page-intro">Gerencie os motoristas disponíveis para as entregas.</p>
+  </div>
+  <a class="button button-primary" href="/motoristas/novo"><span aria-hidden="true">＋</span> Novo motorista</a>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <h2>Motoristas cadastrados</h2>
+      <p class="muted"><%= motoristas.length %> <%= motoristas.length === 1 ? 'motorista' : 'motoristas' %></p>
+    </div>
+  </div>
+  <% if (motoristas.length) { %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Nome</th><th>CPF</th><th>Placa do veículo</th><th>Status</th></tr></thead>
+        <tbody>
+          <% for (const motorista of motoristas) { %>
+            <tr>
+              <td><strong><%= motorista.nome %></strong></td>
+              <td><%= motorista.cpf %></td>
+              <td><%= motorista.placaVeiculo || '—' %></td>
+              <td><span class="status-badge status-<%= motorista.status.toLowerCase() %>"><%= motorista.status %></span></td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } else { %>
+    <div class="empty-state">
+      <div class="empty-icon" aria-hidden="true">◎</div>
+      <h3>Nenhum motorista cadastrado</h3>
+      <p>Cadastre motoristas para atribuí-los às entregas.</p>
+      <a class="button button-primary" href="/motoristas/novo">Cadastrar motorista</a>
+    </div>
+  <% } %>
+</section>

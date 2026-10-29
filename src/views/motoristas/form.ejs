@@ -1,0 +1,30 @@
+<a class="back-link" href="/motoristas">← Voltar para motoristas</a>
+<section class="form-layout">
+  <div class="form-heading">
+    <p class="eyebrow">EQUIPE</p>
+    <h1>Novo motorista</h1>
+    <p class="page-intro">Cadastre um motorista para atribuir às entregas.</p>
+  </div>
+
+  <form class="panel form-panel" action="/motoristas" method="POST" novalidate>
+    <% if (erros.length) { %>
+      <div class="validation-errors" role="alert">
+        <strong>Confira os dados informados:</strong>
+        <ul><% for (const erro of erros) { %><li><%= erro %></li><% } %></ul>
+      </div>
+    <% } %>
+    <div class="field">
+      <label for="nome">Nome completo</label>
+      <input id="nome" name="nome" type="text" value="<%= motorista.nome || '' %>" required>
+    </div>
+    <div class="field">
+      <label for="cpf">CPF</label>
+      <input id="cpf" name="cpf" type="text" value="<%= motorista.cpf || '' %>" required>
+      <span class="field-help">O CPF deve ser único entre os motoristas cadastrados.</span>
+    </div>
+    <div class="form-actions">
+      <a class="button button-quiet" href="/motoristas">Cancelar</a>
+      <button class="button button-primary" type="submit">Salvar motorista</button>
+    </div>
+  </form>
+</section>

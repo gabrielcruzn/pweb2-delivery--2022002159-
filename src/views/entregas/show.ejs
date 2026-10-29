@@ -1,0 +1,75 @@
+<a class="back-link" href="/entregas">← Voltar para entregas</a>
+<section class="page-heading detail-heading">
+  <div>
+    <p class="eyebrow">DETALHES DA ENTREGA · #<%= entrega.id %></p>
+    <h1><%= entrega.descricao %></h1>
+    <p class="page-intro"><%= entrega.origem %> <span aria-hidden="true">→</span> <%= entrega.destino %></p>
+  </div>
+  <span class="status-badge status-large status-<%= entrega.status.toLowerCase() %>"><%= entrega.status.replace('_', ' ') %></span>
+</section>
+
+<div class="detail-grid">
+  <section class="panel">
+    <div class="panel-heading">
+      <div><h2>Histórico</h2><p class="muted">Atualizações desta entrega</p></div>
+      <span class="count-pill"><%= entrega.historico.length %></span>
+    </div>
+    <% if (entrega.historico.length) { %>
+      <ol class="timeline">
+        <% for (const evento of entrega.historico) { %>
+          <li>
+            <span class="timeline-dot" aria-hidden="true"></span>
+            <div><strong><%= evento.descricao %></strong><time><%= new Date(evento.data).toLocaleString('pt-BR') %></time></div>
+          </li>
+        <% } %>
+      </ol>
+    <% } else { %>
+      <p class="muted">Nenhum evento registrado.</p>
+    <% } %>
+  </section>
+
+  <aside class="panel actions-panel">
+    <h2>Ações</h2>
+    <p class="muted">Status atual: <strong><%= entrega.status.replace('_', ' ') %></strong></p>
+    <% if (entrega.motoristaId) { %>
+      <div class="assigned-driver">
+        <span class="field-caption">MOTORISTA RESPONSÁVEL</span>
+        <strong><%= motorista ? motorista.nome : `Motorista #${entrega.motoristaId}` %></strong>
+      </div>
+    <% } %>
+
+    <% if (entrega.status === 'CRIADA') { %>
+      <% if (motoristas.length) { %>
+        <form class="stacked-form" action="/entregas/<%= entrega.id %>/atribuir?_method=PATCH" method="POST">
+          <div class="field">
+            <label for="motoristaId">Atribuir motorista</label>
+            <select id="motoristaId" name="motoristaId" required>
+              <option value="">Selecione um motorista</option>
+              <% for (const item of motoristas) { %>
+                <option value="<%= item.id %>" <%= entrega.motoristaId === item.id ? 'selected' : '' %>><%= item.nome %></option>
+              <% } %>
+            </select>
+          </div>
+          <button class="button button-secondary button-full" type="submit">Atribuir motorista</button>
+        </form>
+      <% } else { %>
+        <p class="inline-note">Cadastre um motorista ativo para poder atribuí-lo a esta entrega.</p>
+      <% } %>
+      <form action="/entregas/<%= entrega.id %>/avancar?_method=PATCH" method="POST">
+        <button class="button button-primary button-full" type="submit">Avançar para em trânsito</button>
+      </form>
+      <form action="/entregas/<%= entrega.id %>/cancelar?_method=PATCH" method="POST">
+        <button class="button button-danger-quiet button-full" type="submit">Cancelar entrega</button>
+      </form>
+    <% } else if (entrega.status === 'EM_TRANSITO') { %>
+      <form action="/entregas/<%= entrega.id %>/avancar?_method=PATCH" method="POST">
+        <button class="button button-primary button-full" type="submit">Marcar como entregue</button>
+      </form>
+      <form action="/entregas/<%= entrega.id %>/cancelar?_method=PATCH" method="POST">
+        <button class="button button-danger-quiet button-full" type="submit">Cancelar entrega</button>
+      </form>
+    <% } else { %>
+      <p class="inline-note">Esta entrega não possui mais ações disponíveis.</p>
+    <% } %>
+  </aside>
+</div>
