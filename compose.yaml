@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    init: true
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: file:/app/data/delivery.db
+      SESSION_SECRET: ${SESSION_SECRET:?Defina SESSION_SECRET no arquivo .env}
+    volumes:
+      - delivery_data:/app/data
+
+volumes:
+  delivery_data:

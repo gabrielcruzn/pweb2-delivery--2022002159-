@@ -27,6 +27,26 @@ O health check continua disponível em `GET /api/health`.
 Com o servidor em execução, valide as páginas e ações com `npm run check` (ou
 `BASE_URL=http://localhost:3000 node autograder/check.mjs`).
 
+## Como executar com Docker
+
+Copie o arquivo de exemplo de ambiente e configure um segredo de sessão:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Edite `SESSION_SECRET` no `.env` e inicie a aplicação:
+
+```powershell
+docker compose up --build
+```
+
+O Compose aplica as migrações do Prisma ao iniciar e mantém o banco SQLite no
+volume `delivery_data`, mesmo quando o container é recriado. A aplicação fica
+disponível em `http://localhost:3000` (ou na porta definida por `PORT` no `.env`).
+Para parar os containers, use `docker compose down`. Evite `docker compose down -v`
+se quiser preservar os dados do banco.
+
 ## Páginas e ações
 
 | Método | Caminho | Comportamento |
